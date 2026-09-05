@@ -1,5 +1,6 @@
 const express = require('express');
 const mineflayer = require('mineflayer');
+const dns = require('dns');
 
 const app = express();
 app.get('/', (req, res) => res.send('Bot 7/24 Aktif!'));
@@ -9,18 +10,17 @@ process.on('uncaughtException', (err) => {
   console.log('Paket hatasi:', err.message);
 });
 
-// Aternos "Bağlan" Penceresinden Aldığın Dinamik IP ve Port
-const ATERNOS_HOST = 'bluegill.aternos.host'; // Buraya kendi Dinamik IP'ni yaz (örneğin halibut.aternos.host)
-const ATERNOS_PORT = 52241;                // Buraya "Bağlantı Noktası" sayısını yaz
+// ATERNOS SABİT ADRESİN (Hiç değişmeyen adres)
+const ATERNOS_HOST = 'ekip04.aternos.me';
 
 let isReconnecting = false;
 
-function startBot() {
-  console.log(`Baglaniliyor: ${ATERNOS_HOST}:${ATERNOS_PORT}...`);
+function connectBot(host, port) {
+  console.log(`Baglaniliyor: ${host}:${port}...`);
 
   const bot = mineflayer.createBot({
-    host: ATERNOS_HOST,
-    port: ATERNOS_PORT,
+    host: host,
+    port: port,
     username: 'AFK_Bot_724',
     version: '1.21.1',
     auth: 'offline',
@@ -74,15 +74,30 @@ function startBot() {
   function safeReconnect() {
     if (isReconnecting) return;
     isReconnecting = true;
-    console.log('Baglanti koptu. 20sn sonra tekrar denenecek...');
+    console.log('Baglanti koptu. 25sn sonra tekrar deneniyor...');
     try { bot.end(); } catch (e) {}
-    setTimeout(startBot, 20000);
+    setTimeout(startBot, 25000);
   }
 
   bot.on('end', safeReconnect);
   bot.on('error', (err) => {
     console.log('Hata:', err.message);
     safeReconnect();
+  });
+}
+
+function startBot() {
+  // Aternos'un o an atadığı dinamik IP ve Portu ekip04.aternos.me üzerinden bulur
+  dns.resolveSrv(`_minecraft._tcp.${ATERNOS_HOST}`, (err, addresses) => {
+    if (!err && addresses && addresses.length > 0) {
+      const resolvedHost = addresses[0].name;
+      const resolvedPort = addresses[0].port;
+      console.log(`Dinamik adres otomatik cozuldu: ${resolvedHost}:${resolvedPort}`);
+      connectBot(resolvedHost, resolvedPort);
+    } else {
+      console.log('SRV cozulemedı, doğrudan deneniyor...');
+      connectBot(ATERNOS_HOST, 25565);
+    }
   });
 }
 
