@@ -9,13 +9,14 @@ process.on('uncaughtException', (err) => {
   console.log('Paket hatasi:', err.message);
 });
 
-const ATERNOS_HOST = 'halibut.aternos.host';
+// SABİT ATERNOS ADRESİN
+const ATERNOS_HOST = 'ekip04.aternos.me';
 const ATERNOS_PORT = 52241;
 
 let isReconnecting = false;
 
 function createBot() {
-  console.log(`${ATERNOS_HOST}:${ATERNOS_PORT} baglaniliyor...`);
+  console.log(`${ATERNOS_HOST}:${ATERNOS_PORT} adresine baglaniliyor...`);
 
   const bot = mineflayer.createBot({
     host: ATERNOS_HOST,
@@ -29,19 +30,32 @@ function createBot() {
   });
 
   bot.on('spawn', () => {
-    console.log(`Bot (${bot.username}) sunucuya girdi!`);
+    console.log(`Bot (${bot.username}) sunucuya başarıyla girdi!`);
     isReconnecting = false;
     
-    setTimeout(() => {
-      setInterval(() => {
-        if (bot && bot.entity) {
-          bot.chat('.');
-          bot.setControlState('jump', true);
-          setTimeout(() => bot.setControlState('jump', false), 500);
-          bot.look(bot.entity.yaw + 0.5, bot.entity.pitch, true);
-        }
-      }, 60000);
-    }, 5000);
+    // Her 20 saniyede bir fiziksel hareket yap (Aternos AFK tespitini engeller)
+    setInterval(() => {
+      if (bot && bot.entity) {
+        // 1. Zıpla
+        bot.setControlState('jump', true);
+        setTimeout(() => bot.setControlState('jump', false), 400);
+
+        // 2. İleri-Geri Küçük Adım At
+        bot.setControlState('forward', true);
+        setTimeout(() => {
+          bot.setControlState('forward', false);
+          bot.setControlState('back', true);
+          setTimeout(() => bot.setControlState('back', false), 300);
+        }, 400);
+
+        // 3. Kafasını Rastgele Çevir
+        const randomYaw = bot.entity.yaw + (Math.random() * 1.5 - 0.75);
+        bot.look(randomYaw, bot.entity.pitch, true);
+
+        // 4. Chat Mesajı At
+        bot.chat('AFK Bot Aktif #' + Math.floor(Math.random() * 1000));
+      }
+    }, 20000); // 20 Saniye
   });
 
   bot.on('kicked', (reason) => console.log('Atildi:', reason));
@@ -49,7 +63,7 @@ function createBot() {
   function safeReconnect() {
     if (isReconnecting) return;
     isReconnecting = true;
-    console.log('Baglanti koptu, 30sn bekleniyor...');
+    console.log('Sunucu kapali veya baglanti koptu. 30sn sonra tekrar denenecek...');
     try { bot.end(); } catch (e) {}
     setTimeout(createBot, 30000);
   }
