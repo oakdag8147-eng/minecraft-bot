@@ -1,5 +1,6 @@
 const express = require('express');
 const mineflayer = require('mineflayer');
+const dns = require('dns');
 
 const app = express();
 app.get('/', (req, res) => res.send('Bot 7/24 Aktif!'));
@@ -9,18 +10,18 @@ process.on('uncaughtException', (err) => {
   console.log('Paket hatasi:', err.message);
 });
 
-// SABİT ATERNOS ADRESİN
+// Aternos Sabit Adresin
 const ATERNOS_HOST = 'ekip04.aternos.me';
-const ATERNOS_PORT = 52241;
+const DEFAULT_PORT = 52241;
 
 let isReconnecting = false;
 
-function createBot() {
-  console.log(`${ATERNOS_HOST}:${ATERNOS_PORT} adresine baglaniliyor...`);
+function connectBot(host, port) {
+  console.log(`Baglaniliyor: ${host}:${port}...`);
 
   const bot = mineflayer.createBot({
-    host: ATERNOS_HOST,
-    port: ATERNOS_PORT,
+    host: host,
+    port: port,
     username: 'AFK_Bot_724',
     version: '1.21.1',
     auth: 'offline',
@@ -33,29 +34,48 @@ function createBot() {
     console.log(`Bot (${bot.username}) sunucuya başarıyla girdi!`);
     isReconnecting = false;
     
-    // Her 20 saniyede bir fiziksel hareket yap (Aternos AFK tespitini engeller)
-    setInterval(() => {
-      if (bot && bot.entity) {
-        // 1. Zıpla
-        bot.setControlState('jump', true);
-        setTimeout(() => bot.setControlState('jump', false), 400);
+    // Rastgele aralıklarla gerçek oyuncu taklidi yap
+    function doRandomAction() {
+      if (!bot || !bot.entity) return;
 
-        // 2. İleri-Geri Küçük Adım At
-        bot.setControlState('forward', true);
-        setTimeout(() => {
-          bot.setControlState('forward', false);
-          bot.setControlState('back', true);
-          setTimeout(() => bot.setControlState('back', false), 300);
-        }, 400);
+      const actions = [
+        () => {
+          // Zıpla
+          bot.setControlState('jump', true);
+          setTimeout(() => bot.setControlState('jump', false), 400);
+        },
+        () => {
+          // Etrafına bak
+          const randomYaw = bot.entity.yaw + (Math.random() * 2 - 1);
+          bot.look(randomYaw, bot.entity.pitch, true);
+        },
+        () => {
+          // İleri-geri kısa adım at
+          bot.setControlState('forward', true);
+          setTimeout(() => {
+            bot.setControlState('forward', false);
+            bot.setControlState('back', true);
+            setTimeout(() => bot.setControlState('back', false), 300);
+          }, 300);
+        },
+        () => {
+          // Eğil (Shift)
+          bot.setControlState('sneak', true);
+          setTimeout(() => bot.setControlState('sneak', false), 800);
+        }
+      ];
 
-        // 3. Kafasını Rastgele Çevir
-        const randomYaw = bot.entity.yaw + (Math.random() * 1.5 - 0.75);
-        bot.look(randomYaw, bot.entity.pitch, true);
+      // Rastgele bir eylem seç ve uygula
+      const randomAction = actions[Math.floor(Math.random() * actions.length)];
+      randomAction();
 
-        // 4. Chat Mesajı At
-        bot.chat('AFK Bot Aktif #' + Math.floor(Math.random() * 1000));
-      }
-    }, 20000); // 20 Saniye
+      // Bir sonraki eylemi 15 ile 45 saniye arasında rastgele bir zamanda yap
+      const nextTime = Math.floor(Math.random() * 30000) + 15000;
+      setTimeout(doRandomAction, nextTime);
+    }
+
+    // Harita yüklendikten 3 saniye sonra eylemleri başlat
+    setTimeout(doRandomAction, 3000);
   });
 
   bot.on('kicked', (reason) => console.log('Atildi:', reason));
@@ -63,9 +83,9 @@ function createBot() {
   function safeReconnect() {
     if (isReconnecting) return;
     isReconnecting = true;
-    console.log('Sunucu kapali veya baglanti koptu. 30sn sonra tekrar denenecek...');
+    console.log('Baglanti koptu veya sunucu kapali. 30sn sonra tekrar denenecek...');
     try { bot.end(); } catch (e) {}
-    setTimeout(createBot, 30000);
+    setTimeout(startBot, 30000);
   }
 
   bot.on('end', safeReconnect);
@@ -75,4 +95,19 @@ function createBot() {
   });
 }
 
-createBot();
+function startBot() {
+  // Aternos'un o anki dinamik IP ve Portunu Otomatik Çöz
+  dns.resolveSrv(`_minecraft._tcp.${ATERNOS_HOST}`, (err, addresses) => {
+    if (!err && addresses && addresses.length > 0) {
+      const resolvedHost = addresses[0].name;
+      const resolvedPort = addresses[0].port;
+      console.log(`Dinamik adres cozuldu: ${resolvedHost}:${resolvedPort}`);
+      connectBot(resolvedHost, resolvedPort);
+    } else {
+      // Bulamazsa varsayılan adresle dene
+      connectBot(ATERNOS_HOST, DEFAULT_PORT);
+    }
+  });
+}
+
+startBot();
